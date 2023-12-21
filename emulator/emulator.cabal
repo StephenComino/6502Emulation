@@ -27,6 +27,7 @@ library
   exposed-modules:
       CPU
       Lib
+      Parser
   other-modules:
       Paths_emulator
   autogen-modules:
