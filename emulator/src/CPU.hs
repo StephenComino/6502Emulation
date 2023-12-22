@@ -15,12 +15,12 @@ data Processor = Processor {
   _ir :: Int16, 
   _tcu :: Int, -- Timing Control Unit
   _alu :: Int, -- Arithmetic and Logic Unit
-  _acc :: Int, -- Accumulator
+  _acc :: Word8, -- Accumulator
   _idx :: Word8, -- Index Register X
   _idy :: Word8, -- Index Register Y
-  _pr :: Int, -- Processor Status Register
-  _pc :: Int, -- Process Counter
-  _sp :: Int -- Stack Pointer
+  _pr :: Word8, -- Processor Status Register
+  _pc :: Word16, -- Process Counter
+  _sp :: Word8 -- Stack Pointer
 } deriving (Show)
 
 $(makeLenses ''Processor)
