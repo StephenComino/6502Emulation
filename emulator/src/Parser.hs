@@ -1,11 +1,13 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, LambdaCase, OverloadedStrings #-}
-module Parser (parseInstruction, Command(..), Parser, parse, loadCommands, OpCodes) where
+module Parser (parseInstruction, Command(..), Parser, parse, loadCommands, OpCodes(..)) where
 
 import Control.Applicative
 import Data.Char
+import Data.Int
 import System.IO.Unsafe
 import Control.Monad.State.Lazy
 import Control.Lens
+import System.Directory
 
 data Error = Error deriving (Show)
 
@@ -108,8 +110,8 @@ parseSpace = readString " "
 loadX :: Parser Char OpCodes
 loadX = LDX <$ readString "A2"
 
-loadCommands :: [Char]
+loadCommands :: [String]
 loadCommands = do
-    contents <- unsafePerformIO $ readFile "/Users/stephen/6502Emulation/emulator/src/examples/instructions.bin"
+    contents <- lines $ unsafePerformIO $ (readFile ((unsafePerformIO  getCurrentDirectory) ++ "\\src\\examples\\instructions.bin"))
     return $ contents
     --startToken putStrLn "someFunc"
