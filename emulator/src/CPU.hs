@@ -28,7 +28,15 @@ data Pins = Pins {
   _a12 :: Word8,
   _a13 :: Word8,
   _a14 :: Word8,
-  _a15 :: Word8
+  _a15 :: Word8,
+  _d0 :: Word8,
+  _d1 :: Word8,
+  _d2 :: Word8,
+  _d3 :: Word8,
+  _d4 :: Word8,
+  _d5 :: Word8,
+  _d6 :: Word8,
+  _d7 :: Word8
 } deriving (Show)
 
 data Processor = Processor { 
@@ -47,11 +55,37 @@ data Processor = Processor {
 $(makeLenses ''Pins)
 $(makeLenses ''Processor)
 
+-- RESET (RESB)
+-- The program 
+-- counter is loaded with the reset vector from locations FFFC (low byte) and FFFD (high byte).
+reset :: State Processor Processor
+reset = do
+  -- Lasting 7 clock cyces
+  -- Reads fffc and fffd from the databus
+    v <- readCpuMemory16 0xFFFC
+    return 
 --- How can I represent Memory and Program jump instructions?
 -- Parse function Names... Keep Reference and jump to them
+readCpuMemory8 :: Word16 -> Emulator Word8
+readCpuMemory8 addr
+  -- | addr < 0x2000 = readCPURam addr
+  -- | addr < 0x4000 = readPPURegister $ 0x2000 + addr `rem` 8
+  -- | addr == 0x4014 = readPPURegister addr
+  -- | addr == 0x4015 = pure 0
+  -- | addr == 0x4016 = readController
+  -- | addr == 0x4017 = pure 0
+  | addr < 0x6000 = pure 0
+  | addr >= 0x6000 = undefined
+  | otherwise = error $ "Erroneous read detected at " ++ show addr ++ "!"
+
+--readCpuMemory16 :: Word16 -> Emulator Word16
+--readCpuMemory16 addr = do
+--  lo <- readCpuMemory8 addr
+--  hi <- readCpuMemory8 (addr + 1)
+--  pure $ makeW16 lo hi
 
 initial :: Processor
-initial = Processor 0 0 0 0 0 0 0 0 0 $ Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+initial = Processor 0 0 0 0 0 0 0 0 0 $ Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- execState setup initial
 -- Increment the State... Stack pointer by one
@@ -70,6 +104,7 @@ performInstruction (Command instruction addr ) = case instruction of
                       LDX -> ldx ((fromIntegral $ addr)::Word8)
                       LDY -> ldy ((fromIntegral $ addr)::Word8)
                       TXS -> txs
+                      LDA -> lda ((fromIntegral $ addr)::Word8)
                       _ -> other
 
 other :: State Processor Processor
@@ -81,6 +116,14 @@ other = do
 -- Implement only # addressing first
 -- LDX A2
 -- execState (performInstruction (Command { instruction=LDX, address=256 } )) initial
+lda :: Word8 -> State Processor Processor
+lda addr = do
+        p <- get
+        res <- use acc
+        acc .= addr
+        return p
+
+
 ldx :: Word8 -> State Processor Processor
 ldx addr = do
         p <- get
@@ -116,6 +159,5 @@ run = do
     let result =  fmap getParsedValue $ (fmap (parse parseInstruction) indiv)
     let state = performActions result initial where
                   performActions (x:xs) a = performActions xs (execState (performInstruction x) a)
-                  performActions (x:[]) a = performActions [] (execState (performInstruction x) a)
                   performActions [] a = a
     print $ state

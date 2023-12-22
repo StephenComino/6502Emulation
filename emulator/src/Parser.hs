@@ -92,7 +92,7 @@ readString str = Parser $ \input ->
 -- Define LAnguage Things
 parseInstruction :: Parser Char Command
 parseInstruction = do
-    instruction <- loadX <|> loadY <|> loadTxs
+    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda
     _ <- many $ parseSpace
     address <- many $ getAddress
     return $ Command { instruction=instruction, address= hexToDecimal address }
@@ -115,6 +115,9 @@ loadY = LDY <$ readString "A0"
 
 loadTxs :: Parser Char OpCodes
 loadTxs = TXS <$ readString "9A"
+
+loadLda :: Parser Char OpCodes
+loadLda = LDA <$ readString "A9"
 
 loadCommands :: IO String
 loadCommands = do
