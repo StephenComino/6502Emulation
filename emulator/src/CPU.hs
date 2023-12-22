@@ -49,6 +49,7 @@ data Processor = Processor {
   _pr :: Word8, -- Processor Status Register
   _pc :: Word16, -- Process Counter
   _sp :: Word8, -- Stack Pointer
+  _cycles :: Int,
   _pins :: Pins
 } deriving (Show)
 
@@ -85,7 +86,7 @@ readCpuMemory8 addr
 --  pure $ makeW16 lo hi
 
 initial :: Processor
-initial = Processor 0 0 0 0 0 0 0 0 0 $ Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+initial = Processor 0 0 0 0 0 0 0 0 0 0 $ Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
 
 -- execState setup initial
 -- Increment the State... Stack pointer by one
