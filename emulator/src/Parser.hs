@@ -92,8 +92,8 @@ readString str = Parser $ \input ->
 -- Define LAnguage Things
 parseInstruction :: Parser Char Command
 parseInstruction = do
-    instruction <- loadX
-    _ <- parseSpace
+    instruction <- loadX <|> loadY <|> loadTxs
+    _ <- many $ parseSpace
     address <- many $ getAddress
     return $ Command { instruction=instruction, address= hexToDecimal address }
 
@@ -110,8 +110,16 @@ parseSpace = readString " "
 loadX :: Parser Char OpCodes
 loadX = LDX <$ readString "A2"
 
-loadCommands :: [String]
+loadY :: Parser Char OpCodes
+loadY = LDY <$ readString "A0"
+
+loadTxs :: Parser Char OpCodes
+loadTxs = TXS <$ readString "9A"
+
+loadCommands :: IO String
 loadCommands = do
-    contents <- lines $ unsafePerformIO $ (readFile ((unsafePerformIO  getCurrentDirectory) ++ "\\src\\examples\\instructions.bin"))
+    directory <- getCurrentDirectory
+    contents <- (readFile (directory ++ "\\src\\examples\\instructions.bin"))
     return $ contents
     --startToken putStrLn "someFunc"
+
