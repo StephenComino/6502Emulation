@@ -122,7 +122,7 @@ loadLda = LDA <$ readString "A9"
 loadCommands :: IO String
 loadCommands = do
     directory <- getCurrentDirectory
-    contents <- (readFile (directory ++ "\\src\\examples\\instructions.bin"))
+    contents <- (readFile (directory ++ "/src/examples/instructions.bin"))
     return $ contents
     --startToken putStrLn "someFunc"
 

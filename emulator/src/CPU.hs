@@ -10,6 +10,7 @@ import Control.Monad.State (State, execState, get, evalState)
 import Parser (parseInstruction, Command(..), Parser, parse, loadCommands, OpCodes(..))
 import Control.Monad.State.Lazy
 import Control.Lens
+import Control.Concurrent
 import GHC.Word
 
 data Pins = Pins {
@@ -157,4 +158,5 @@ run = do
                   performActions (x:xs) a = performActions xs (execState (performInstruction x) a)
                   performActions [] a = a
     print $ state
+    threadDelay 2000000
     run
