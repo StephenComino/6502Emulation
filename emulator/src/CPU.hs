@@ -57,6 +57,10 @@ data Processor = Processor {
 $(makeLenses ''Pins)
 $(makeLenses ''Processor)
 
+-- Data is loaded into the ROM.
+-- The PC resets and points to ROM first instruction
+-- 
+
 -- RESET (RESB)
 -- The program 
 -- counter is loaded with the reset vector from locations FFFC (low byte) and FFFD (high byte).
