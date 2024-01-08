@@ -8,6 +8,7 @@ import System.IO.Unsafe
 import Control.Monad.State.Lazy
 import Control.Lens
 import System.Directory
+import Debug.Trace
 
 data Error = Error deriving (Show)
 
@@ -92,16 +93,23 @@ readString str = Parser $ \input ->
 -- Define LAnguage Things
 parseInstruction :: Parser Char Command
 parseInstruction = do
-    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda
+    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadSta
     _ <- many $ parseSpace
-    address <- many $ getAddress
-    return $ Command { instruction=instruction, address= hexToDecimal address }
+    if (is16bit instruction) then do
+            addressHigh <- many $ getAddress8
+            _ <- many $ parseSpace
+            addressLow <- many $ getAddress8
+            traceShow (addressLow ++ addressHigh) $ pure ()
+            return $ Command { instruction=instruction, address= read (addressLow ++ addressHigh) }
+        else do
+            address <- many $ getAddress8
+            return $ Command { instruction=instruction, address= hexToDecimal address }
 
 hexToDecimal :: String -> Int
 hexToDecimal = sum . zipWith (*) (iterate (*16) 1) . reverse . map digitToInt . map toUpper
 
-getAddress :: Parser Char Char
-getAddress = satisfy isAlpha <|> satisfy isDigit
+getAddress8 :: Parser Char Char
+getAddress8 = satisfy isAlpha <|> satisfy isDigit
 
 -- Program Start
 parseSpace :: Parser Char [Char]
@@ -118,6 +126,13 @@ loadTxs = TXS <$ readString "9A"
 
 loadLda :: Parser Char OpCodes
 loadLda = LDA <$ readString "A9"
+
+loadSta :: Parser Char OpCodes
+loadSta = STA <$ readString "8D"
+
+is16bit :: OpCodes -> Bool
+is16bit STA = True
+is16bit _   = False
 
 loadCommands :: IO String
 loadCommands = do

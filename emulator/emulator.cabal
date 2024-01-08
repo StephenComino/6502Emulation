@@ -28,6 +28,9 @@ library
       CPU
       Lib
       Parser
+      Ram
+      Rom
+      VIA
   other-modules:
       Paths_emulator
   autogen-modules:

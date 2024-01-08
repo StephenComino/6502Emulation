@@ -6,12 +6,17 @@ module CPU
 
 import Data.Int
 import Data.Bits
+import System.IO.Unsafe
 import Control.Monad.State (State, execState, get, evalState)
 import Parser (parseInstruction, Command(..), Parser, parse, loadCommands, OpCodes(..))
+import Rom (Rom(..))
+import Ram (Ram(..))
 import Control.Monad.State.Lazy
 import Control.Lens
 import Control.Concurrent
+import Debug.Trace
 import GHC.Word
+import Data.Map
 
 data Pins = Pins {
   _a0 :: Word8,
@@ -48,15 +53,22 @@ data Processor = Processor {
   _idx :: Word8, -- Index Register X
   _idy :: Word8, -- Index Register Y
   _pr :: Word8, -- Processor Status Register
-  _pc :: Word16, -- Process Counter
+  _pc :: Word16, -- Program Counter
   _sp :: Word8, -- Stack Pointer
   _cycles :: Int,
-  _pins :: Pins
+  _pins :: Pins,
+  _rom :: State Rom Rom,
+  _ram :: Map Word16 Word8
 } deriving (Show)
+
+instance Show (State Rom Rom) where
+  show a = show (execState a (Rom []))
+
 
 $(makeLenses ''Pins)
 $(makeLenses ''Processor)
-
+$(makeLenses ''Rom)
+$(makeLenses ''Ram)
 -- Data is loaded into the ROM.
 -- The PC resets and points to ROM first instruction
 -- 
@@ -64,31 +76,20 @@ $(makeLenses ''Processor)
 -- RESET (RESB)
 -- The program 
 -- counter is loaded with the reset vector from locations FFFC (low byte) and FFFD (high byte).
---reset :: State Processor Processor
---reset = do
+-- 0 -> 0x3FFF ram
+-- 0x6000 -> 0x8000 VIA
+-- 8000 -> 0xFFFF rom
+reset :: State Processor Processor
+reset = do
   -- Lasting 7 clock cyces
   -- Reads fffc and fffd from the databus
-  --  v <- readCpuMemory16 0xFFFC
-  --  return 
--- Information:
--- Figure out the Mapping for Data..
--- The rom will be loaded at certain address
--- The peripheral devices will be at a certain address
-
---readCpuMemory8 :: Word16 -> Emulator Word8
---readCpuMemory8 addr
-  -- | addr < 0x2000 = readCPURam addr
-  -- | addr < 0x4000 = readPPURegister $ 0x2000 + addr `rem` 8
-  -- | addr == 0x4014 = readPPURegister addr
-  -- | addr == 0x4015 = pure 0
-  -- | addr == 0x4016 = readController
-  -- | addr == 0x4017 = pure 0
---  | addr < 0x6000 = pure 0
---  | addr >= 0x6000 = undefined
---  | otherwise = error $ "Erroneous read detected at " ++ show addr ++ "!"
+  -- v <- readCpuMemory16 0xFFFC
+  p <- get
+  pc .= 0x8000
+  return p
 
 initial :: Processor
-initial = Processor 0 0 0 0 0 0 0 0 0 0 $ Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+initial = Processor 0 0 0 0 0 0 0 0 0 0 (Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0) loadRom (fromList [])
 
 -- execState setup initial
 -- Increment the State... Stack pointer by one
@@ -108,6 +109,7 @@ performInstruction (Command instruction addr ) = case instruction of
                       LDY -> ldy ((fromIntegral $ addr)::Word8)
                       TXS -> txs
                       LDA -> lda ((fromIntegral $ addr)::Word8)
+                      STA -> sta ((fromIntegral $ addr)::Word16)
                       _ -> other
 
 other :: State Processor Processor
@@ -122,8 +124,10 @@ other = do
 lda :: Word8 -> State Processor Processor
 lda addr = do
         p <- get
+        counter <- use pc
         res <- use acc
         acc .= addr
+        pc .= counter + 1
         return p
 
 
@@ -148,17 +152,40 @@ txs = do
         sp .= res
         return p
 
+-- Store Word16 at Address
+sta :: Word16 -> State Processor Processor
+sta addr = do
+        p <- get
+        counter <- use pc
+        res <- use acc
+        r <- use ram
+        ram .= insert addr res r
+        traceShow addr $ pure ()
+        return p
+
 getParsedValue :: Either a (Command, [Char]) -> Command
 getParsedValue a = case a of
                       Left err -> Command { instruction=NOP,address=0 }
                       Right (command, rest) -> command
+
+loadRom :: State Rom Rom
+loadRom = do
+  r <- get
+  let commands = unsafePerformIO loadCommands
+  let indiv = lines commands
+  let info = fmap getParsedValue $ (fmap (parse parseInstruction) indiv)
+  _ <- use romData
+  romData .= info
+  return r
+
 -- 1. LDA STA
 run :: IO ()
 run = do
+    let resetProcess = execState reset initial
     commands <- loadCommands
     let indiv = lines commands
-    let result =  fmap getParsedValue $ (fmap (parse parseInstruction) indiv)
-    let state = performActions result initial where
+    let result = execState loadRom (Rom [])
+    let state = performActions (_romData result) resetProcess where
                   performActions (x:xs) a = performActions xs (execState (performInstruction x) a)
                   performActions [] a = a
     print $ state
