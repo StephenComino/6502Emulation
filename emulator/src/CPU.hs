@@ -110,6 +110,7 @@ performInstruction (Command instruction addr ) = case instruction of
                       TXS -> txs
                       LDA -> lda ((fromIntegral $ addr)::Word8)
                       STA -> sta ((fromIntegral $ addr)::Word16)
+                      JSR -> jsr ((fromIntegral $ addr)::Word16)
                       _ -> other
 
 other :: State Processor Processor
@@ -155,6 +156,16 @@ txs = do
 -- Store Word16 at Address
 sta :: Word16 -> State Processor Processor
 sta addr = do
+        p <- get
+        counter <- use pc
+        res <- use acc
+        r <- use ram
+        ram .= insert addr res r
+        traceShow addr $ pure ()
+        return p
+
+jsr :: Word16 -> State Processor Processor
+jsr addr = do
         p <- get
         counter <- use pc
         res <- use acc

@@ -130,8 +130,12 @@ loadLda = LDA <$ readString "A9"
 loadSta :: Parser Char OpCodes
 loadSta = STA <$ readString "8D"
 
+jumpSubRoutine :: Parser Char OpCodes
+jumpSubRoutine = JSR <$ readString "20"
+
 is16bit :: OpCodes -> Bool
 is16bit STA = True
+is16bit JSR = True
 is16bit _   = False
 
 loadCommands :: IO String
