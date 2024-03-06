@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, LambdaCase, OverloadedStrings #-}
-module Parser (parseInstruction, Command(..), Parser, parse, loadCommands, OpCodes(..)) where
+module Parser (parseInstruction, Command(..), Parser, parse, loadCommands, parseInstructions, OpCodes(..)) where
 
 import Control.Applicative
 import Data.Char
@@ -9,6 +9,13 @@ import Control.Monad.State.Lazy
 import Control.Lens
 import System.Directory
 import Debug.Trace
+import Data.ByteString as BS
+import GHC.Enum
+import Data.Word
+import Text.Printf
+import Data.Bits
+import Data.Text.Internal.Unsafe.Char
+import GHC.Base
 
 data Error = Error deriving (Show)
 
@@ -93,7 +100,8 @@ readString str = Parser $ \input ->
 -- Define LAnguage Things
 parseInstruction :: Parser Char Command
 parseInstruction = do
-    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadSta
+    _ <- many $ parseSpace
+    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadSta <|> jumpSubRoutine <|> returnFromSubRoutine <|> nop
     _ <- many $ parseSpace
     if (is16bit instruction) then do
             addressHigh <- many $ getAddress8
@@ -105,8 +113,13 @@ parseInstruction = do
             address <- many $ getAddress8
             return $ Command { instruction=instruction, address= hexToDecimal address }
 
+parseInstructions :: Parser Char [Command]
+parseInstructions = do
+  l <- many $ parseInstruction
+  return l
+
 hexToDecimal :: String -> Int
-hexToDecimal = sum . zipWith (*) (iterate (*16) 1) . reverse . map digitToInt . map toUpper
+hexToDecimal = sum . Prelude.zipWith (*) (iterate (*16) 1) . Prelude.reverse . Prelude.map digitToInt . Prelude.map toUpper
 
 getAddress8 :: Parser Char Char
 getAddress8 = satisfy isAlpha <|> satisfy isDigit
@@ -133,6 +146,12 @@ loadSta = STA <$ readString "8D"
 jumpSubRoutine :: Parser Char OpCodes
 jumpSubRoutine = JSR <$ readString "20"
 
+returnFromSubRoutine :: Parser Char OpCodes
+returnFromSubRoutine = RTS <$ readString "60"
+
+nop :: Parser Char OpCodes
+nop = NOP <$ readString "EA"
+
 is16bit :: OpCodes -> Bool
 is16bit STA = True
 is16bit JSR = True
@@ -141,7 +160,7 @@ is16bit _   = False
 loadCommands :: IO String
 loadCommands = do
     directory <- getCurrentDirectory
-    contents <- (readFile (directory ++ "/src/examples/instructions.bin"))
-    return $ contents
+    contents <- (BS.readFile (directory ++ "/src/examples/instructions2.bin"))
+    return $ Prelude.concatMap ((printf "%02x\n")) $ unpack contents
     --startToken putStrLn "someFunc"
 
