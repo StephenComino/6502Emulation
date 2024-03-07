@@ -136,7 +136,7 @@ lda addr = do
         counter <- use pc
         res <- use acc
         acc .= addr
-        pc .= counter + 1
+        --pc .= counter + 1
         return p
 
 
@@ -169,7 +169,7 @@ sta addr = do
         res <- use acc
         r <- use ram
         ram .= Data.Map.insert addr res r
-        pc .= counter + 1
+        --pc .= counter + 1
         --traceShow addr $ pure ()
         return p
 
@@ -199,7 +199,7 @@ nop :: State Processor Processor
 nop = do
         p <- get
         counter <- use pc
-        pc .= counter + 1
+        --pc .= counter + 1
         return p
 
 getParsedValue :: [Either a ([Command], [Char])] -> [Command]
@@ -278,8 +278,10 @@ run = do
     --print $ indiv
     let result = execState incrementPCToSortCommands initial
     --print result
-    let m = execState performActions result
-
-    print $ m
-    threadDelay 2000000
+    procLoop result where
+        procLoop r = do
+                let m = execState performActions r
+                print $ m
+                threadDelay 2000000
+                procLoop m
     --run
