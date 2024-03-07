@@ -102,7 +102,7 @@ readString str = Parser $ \input ->
 parseInstruction :: Parser Char Command
 parseInstruction = do
     _ <- many $ parseSpace
-    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadLdaAbsolute <|> loadSta <|> jumpSubRoutine <|> returnFromSubRoutine <|> nop
+    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadLdaAbsolute <|> loadSta <|> jumpSubRoutine <|> returnFromSubRoutine <|> inx <|> nop
     _ <- many $ parseSpace
     if (is16bit instruction) then do
             addressHigh <- many $ getAddress8
@@ -152,6 +152,9 @@ jumpSubRoutine = JSR <$ readString "20"
 
 returnFromSubRoutine :: Parser Char OpCodes
 returnFromSubRoutine = RTS <$ readString "60"
+
+inx :: Parser Char OpCodes
+inx = INX <$ readString "E8"
 
 nop :: Parser Char OpCodes
 nop = NOP <$ readString "EA"

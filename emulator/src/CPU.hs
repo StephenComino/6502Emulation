@@ -19,6 +19,8 @@ import Data.Char
 import Data.List
 import GHC.Word
 import Data.Map
+import Control.Exception
+import GHC.IO (catchException)
 
 data Pins = Pins {
   _a0 :: Word8,
@@ -88,7 +90,7 @@ reset = do
   -- Reads fffc and fffd from the databus
   -- v <- readCpuMemory16 0xFFFC
   p <- get
-  pc .= 0x8000
+  pc .= 8000
   return p
 
 initial :: Processor
@@ -117,6 +119,7 @@ performInstruction (Command instruction addr ) = case instruction of
                       LDA -> lda ((fromIntegral $ addr)::Word8)
                       STA -> sta ((fromIntegral $ addr)::Word16)
                       JSR -> jsr ((fromIntegral $ addr)::Word16)
+                      INX -> inx
                       RTS -> rts
                       NOP -> nop
                       _ -> other
@@ -179,9 +182,9 @@ jsr addr = do
         p <- get
         counter <- use pc
         s <- use stack
-        stack .= Data.Map.insert 0 counter s
+        stack .= Data.Map.insert 0 (counter - 2) s
         --traceShow addr $ pure ()
-        pc .= addr
+        pc .= (addr - 1)
         return p
 
 -- Gets program counter from Stack
@@ -191,8 +194,15 @@ rts = do
         counter <- use pc
         s <- use stack
         let newPc = s ! (0 :: Word16)
-        pc .= newPc
+        pc .= newPc - 1
         --traceShow stack $ pure ()
+        return p
+
+inx :: State Processor Processor
+inx = do
+        p <- get
+        x <- use idx
+        idx .= x + 1
         return p
 
 nop :: State Processor Processor
@@ -207,21 +217,6 @@ getParsedValue (a:as)= case a of
                       Left err -> [Command { instruction=NOP,address=0 }]
                       Right (command, rest) -> command ++ getParsedValue as
 getParsedValue ([]) = [Command { instruction=NOP,address=0 }]
-
-loadRom :: State Rom Rom
-loadRom = do
-  r <- get
-  let commands = unsafePerformIO loadCommands
-  --traceShow commands $ pure ()
-  let indiv = intercalate " " $ lines $ Prelude.map toUpper commands
-  let info = getParsedValue $ (fmap (parse parseInstructions) [indiv])
-  --Load each instruction into ROM
-  rd <- use romData
-  
-  romData .= Data.Map.insert 0x8000 Command { instruction=NOP,address=0 } rd 
-    --_ <- use romData
-  --romData .= info
-  return r
 
 loadRom2 :: Word16 -> [Command] -> State Processor Processor
 loadRom2 addr (x:xs) = do
