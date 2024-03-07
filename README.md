@@ -1,4 +1,8 @@
 ﻿# 6502Emulation
+
+This is a very simple emulation of the texas instruments 65c02 CPU written in Haskell.
+
+
 Compile:
 vasm6502_oldstyle -Fbin -dotdir <blink.s>
 hexdump -C a.out
