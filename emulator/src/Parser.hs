@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances, LambdaCase, OverloadedStrings #-}
-module Parser (parseInstruction, Command(..), Parser, parse, loadCommands, parseInstructions, OpCodes(..)) where
+module Parser (is16bit,parseInstruction, Command(..), Parser, parse, loadCommands, parseInstructions, OpCodes(..)) where
 
 import Control.Applicative
 import Data.Char
@@ -24,7 +24,8 @@ data OpCodes = ADC | AND | ASL | BBR | BBS | BBC | BCS | BEQ | BIT | BMI | BME |
                BRK | BVC | BVS | CLC | CLD | CLI | CLV | CMP | CPX | CPY | DEC | DEX | DEY | EOR |
                INC | INX | INY | JMP | JSR | LDA | LDX | LDY | LSR | NOP | ORA | PHA | PHP | PHX |
                PHY | PLA | PLP | PLX | PLY | RMB | ROL | ROR | RTI | RTS | SBC | SEC | SED | SEI |
-               SMB | STA | STP | STX | STY | STZ | TAX | TAY | TRB | TSB | TSX | TXS | TYA | WAI deriving (Show)
+               SMB | STA | STP | STX | STY | STZ | TAX | TAY | TRB | TSB | TSX | TXS | TYA | WAI |
+               LDAa deriving (Show)
 
 data Command = Command { instruction :: OpCodes, address :: Int} deriving (Show)
 
@@ -101,7 +102,7 @@ readString str = Parser $ \input ->
 parseInstruction :: Parser Char Command
 parseInstruction = do
     _ <- many $ parseSpace
-    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadSta <|> jumpSubRoutine <|> returnFromSubRoutine <|> nop
+    instruction <- loadX <|> loadY <|> loadTxs <|> loadLda <|> loadLdaAbsolute <|> loadSta <|> jumpSubRoutine <|> returnFromSubRoutine <|> nop
     _ <- many $ parseSpace
     if (is16bit instruction) then do
             addressHigh <- many $ getAddress8
@@ -140,6 +141,9 @@ loadTxs = TXS <$ readString "9A"
 loadLda :: Parser Char OpCodes
 loadLda = LDA <$ readString "A9"
 
+loadLdaAbsolute :: Parser Char OpCodes
+loadLdaAbsolute = LDAa <$ readString "AD"
+
 loadSta :: Parser Char OpCodes
 loadSta = STA <$ readString "8D"
 
@@ -155,6 +159,7 @@ nop = NOP <$ readString "EA"
 is16bit :: OpCodes -> Bool
 is16bit STA = True
 is16bit JSR = True
+is16bit LDAa = True
 is16bit _   = False
 
 loadCommands :: IO String

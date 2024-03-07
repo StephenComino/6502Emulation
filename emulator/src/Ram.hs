@@ -11,8 +11,8 @@ import Control.Concurrent
 import Data.Int
 import Data.Bits
 import Control.Monad.State.Lazy
-import GHC.Word
 import Data.Map
+import Data.Word
 
 data Ram = Ram {
       _ramData :: Map Word16 Word8

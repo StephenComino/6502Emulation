@@ -8,7 +8,7 @@ import Data.Int
 import Data.Bits
 import System.IO.Unsafe
 import Control.Monad.State (State, execState, get, evalState)
-import Parser (parseInstruction, Command(..), Parser, parse, loadCommands, parseInstructions, OpCodes(..))
+import Parser (is16bit, parseInstruction, Command(..), Parser, parse, loadCommands, parseInstructions, OpCodes(..))
 import Rom (Rom(..))
 import Ram (Ram(..))
 import Control.Monad.State.Lazy
@@ -59,13 +59,14 @@ data Processor = Processor {
   _sp :: Word8, -- Stack Pointer from 0100 to 01FF
   _cycles :: Int,
   _pins :: Pins,
-  _rom :: State Rom Rom,
+  _rom :: Map Word16 Command,
   _ram :: Map Word16 Word8,
   _stack :: Map Word16 Word16
 } deriving (Show)
 
 instance Show (State Rom Rom) where
-  show a = show (execState a (Rom []))
+  show a = show (execState a (Rom $ fromList []))
+
 
 $(makeLenses ''Pins)
 $(makeLenses ''Processor)
@@ -91,7 +92,10 @@ reset = do
   return p
 
 initial :: Processor
-initial = Processor 0 0 0 0 0 0 0 0 0 0 (Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0) loadRom (fromList []) (fromList [])
+initial = Processor 0 0 0 0 0 0 0 0 0 0 (Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0) (fromList []) (fromList []) (fromList [])
+
+instance Show (State Processor Processor) where
+  show a = show $ _rom (evalState a initial)
 
 -- execState setup initial
 -- Increment the State... Stack pointer by one
@@ -166,7 +170,7 @@ sta addr = do
         r <- use ram
         ram .= Data.Map.insert addr res r
         pc .= counter + 1
-        traceShow addr $ pure ()
+        --traceShow addr $ pure ()
         return p
 
 -- Pushes address - 1 of the return point onto the tack and then sets the program counter to the target memory address
@@ -176,7 +180,7 @@ jsr addr = do
         counter <- use pc
         s <- use stack
         stack .= Data.Map.insert 0 counter s
-        traceShow addr $ pure ()
+        --traceShow addr $ pure ()
         pc .= addr
         return p
 
@@ -198,37 +202,84 @@ nop = do
         pc .= counter + 1
         return p
 
-getParsedValue :: Either a ([Command], [Char]) -> Command
-getParsedValue a = case a of
-                      Left err -> Command { instruction=NOP,address=0 }
-                      Right ([command], rest) -> command
-                      Right ([], rest) -> Command { instruction=NOP,address=0 }
-                      _ -> Command { instruction=NOP,address=0 }
+getParsedValue :: [Either a ([Command], [Char])] -> [Command]
+getParsedValue (a:as)= case a of
+                      Left err -> [Command { instruction=NOP,address=0 }]
+                      Right (command, rest) -> command ++ getParsedValue as
+getParsedValue ([]) = [Command { instruction=NOP,address=0 }]
 
 loadRom :: State Rom Rom
 loadRom = do
   r <- get
   let commands = unsafePerformIO loadCommands
-  traceShow commands $ pure ()
+  --traceShow commands $ pure ()
   let indiv = intercalate " " $ lines $ Prelude.map toUpper commands
-  let info = fmap getParsedValue $ (fmap (parse parseInstructions) [indiv])
-  --let info = fmap getParsedValue $ parseInstructions indiv
-  _ <- use romData
-  romData .= info
+  let info = getParsedValue $ (fmap (parse parseInstructions) [indiv])
+  --Load each instruction into ROM
+  rd <- use romData
+  
+  romData .= Data.Map.insert 0x8000 Command { instruction=NOP,address=0 } rd 
+    --_ <- use romData
+  --romData .= info
   return r
 
+loadRom2 :: Word16 -> [Command] -> State Processor Processor
+loadRom2 addr (x:xs) = do
+  r <- get 
+  --Load each instruction into ROM
+  rd <- use rom
+  
+  rom .= Data.Map.insert addr x rd 
+    --_ <- use romData
+  --romData .= info
+  let addressPlus = sortCommands x
+  loadRom2 (addr + addressPlus) xs
+loadRom2 addr [] = do
+  r <- get
+  return r
+
+incrementPCToSortCommands :: State Processor Processor
+incrementPCToSortCommands = do
+        p <- get
+        r <- use rom
+        reset
+        counter <- use pc
+        let commands = unsafePerformIO loadCommands
+        
+        let indiv = intercalate " " $ lines $ Prelude.map toUpper commands
+        let info = getParsedValue $ (fmap (parse parseInstructions) [indiv])
+
+        loadRom2 counter info--execState loadRom (Rom $ fromList [])
+        --traceShow r $ pure ()
+        reset
+        return p
+
+-- we want to start at 0x8000
+sortCommands :: Command -> Word16
+sortCommands command = case is16bit (instruction command) of
+        True -> 3
+        False -> 2
+
+performActions :: State Processor Processor
+performActions = do
+        p <- get
+        counter <- use pc
+        rd <- use rom
+        --traceShow rd $ pure ()
+        let command =  rd ! counter
+        pc .= counter + (sortCommands command)
+        --traceShow command $ pure ()
+        res <- (performInstruction command)
+        return res
 
 -- 1. LDA STA
 run :: IO ()
 run = do
-    let resetProcess = execState reset initial
-    commands <- loadCommands
-    let indiv = intercalate " " $ lines $ Prelude.map toUpper commands
-    print $ indiv
-    let result = execState loadRom (Rom [])
-    let state = performActions (_romData result) resetProcess where
-                  performActions (x:xs) a = performActions xs (execState (performInstruction x) a)
-                  performActions [] a = a
-    print $ state
+    --print $ indiv
+    let result = execState incrementPCToSortCommands initial
+    --print result
+    let m = execState performActions result
+
+    print $ m
     threadDelay 2000000
-    run
+    --run
