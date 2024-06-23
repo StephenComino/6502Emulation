@@ -2,5 +2,7 @@ module Lib
     ( someFunc
     ) where
 
+import CPU
+
 someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+someFunc = run

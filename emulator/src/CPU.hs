@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell, Rank2Types, NoMonomorphismRestriction, RecordWildCards, TypeSynonymInstances, FlexibleInstances #-}
 module CPU
     ( 
-      Processor
+      Processor,
+      run
     ) where
 
 import Data.Int
@@ -59,6 +60,7 @@ data Processor = Processor {
   _pr :: Word8, -- Processor Status Register
   _pc :: Word16, -- Program Counter
   _sp :: Word8, -- Stack Pointer from 0100 to 01FF
+  _carry :: Word8,
   _cycles :: Int,
   _pins :: Pins,
   _rom :: Map Word16 Command,
@@ -197,6 +199,14 @@ rts = do
         pc .= newPc - 1
         --traceShow stack $ pure ()
         return p
+
+# Add memory to accumulator with carry
+adc :: State Processor Processor
+adc = do
+	p <- get
+	acc <- use acc
+	cary <- use carry
+	return p
 
 inx :: State Processor Processor
 inx = do
