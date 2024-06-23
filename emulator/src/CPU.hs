@@ -20,8 +20,10 @@ import Data.Char
 import Data.List
 import GHC.Word
 import Data.Map
+import Data.Bits ((.|.))
 import Control.Exception
 import GHC.IO (catchException)
+import Control.Monad.Accum (MonadAccum(accum))
 
 data Pins = Pins {
   _a0 :: Word8,
@@ -60,7 +62,13 @@ data Processor = Processor {
   _pr :: Word8, -- Processor Status Register
   _pc :: Word16, -- Program Counter
   _sp :: Word8, -- Stack Pointer from 0100 to 01FF
-  _carry :: Word8,
+  _carryFlag :: Bool,
+  _zeroFlag :: Bool,
+  _irqbFlag :: Bool,
+  _decimalModeFlag :: Bool,
+  _brkFlag :: Bool, -- Sets IRQB to 0
+  _overflowFlag :: Bool,
+  _negativeFlag :: Bool,
   _cycles :: Int,
   _pins :: Pins,
   _rom :: Map Word16 Command,
@@ -96,7 +104,7 @@ reset = do
   return p
 
 initial :: Processor
-initial = Processor 0 0 0 0 0 0 0 0 0 0 (Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0) (fromList []) (fromList []) (fromList [])
+initial = Processor 0 0 0 0 0 0 0 0 0 0 0 (Pins 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0) (fromList []) (fromList []) (fromList [])
 
 instance Show (State Processor Processor) where
   show a = show $ _rom (evalState a initial)
@@ -115,6 +123,9 @@ setup = do
 
 performInstruction :: Command -> State Processor Processor
 performInstruction (Command instruction addr ) = case instruction of
+                      ADC -> adc ((fromIntegral $ addr)::Word8)
+                      ORA -> ora ((fromIntegral $ addr)::Word8)
+                      EOR -> eor ((fromIntegral $ addr)::Word8)
                       LDX -> ldx ((fromIntegral $ addr)::Word8)
                       LDY -> ldy ((fromIntegral $ addr)::Word8)
                       TXS -> txs
@@ -200,14 +211,37 @@ rts = do
         --traceShow stack $ pure ()
         return p
 
-# Add memory to accumulator with carry
-adc :: State Processor Processor
-adc = do
-	p <- get
-	acc <- use acc
-	cary <- use carry
-	return p
+-- Add memory to accumulator with carry
+adc :: Word8 -> State Processor Processor
+adc value = do
+        p <- get
+        cary <- use carryFlag
+        acc .= value + cary
+        return p
 
+-- Does this instruction need Word16?
+ora :: Word8 -> State Processor Processor
+ora value = do
+        p <- get
+        ac <- use acc
+        acc .= (.|.) ac value
+        return p
+
+-- Does this instruction need Word16?
+eor :: Word8 -> State Processor Processor
+eor value = do
+        p <- get
+        ac <- use acc
+        acc .= xor ac value
+        return p
+
+-- Compare memory with accumulator
+cmp :: Word8 -> State Processor Processor
+cmp value = do
+        p <- get
+        acc <- use acc
+
+        return p
 inx :: State Processor Processor
 inx = do
         p <- get
